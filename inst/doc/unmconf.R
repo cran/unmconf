@@ -9,7 +9,6 @@ library("unmconf")
 library("bayesplot")
 library("ggplot2"); theme_set(theme_minimal())
 
-## -----------------------------------------------------------------------------
 set.seed(13L)
 df <- 
   runm(n = 100,
@@ -58,19 +57,21 @@ rbind(head(df_ext, 5), tail(df_ext, 5))
 
 ## -----------------------------------------------------------------------------
 unm_mod <- 
-  unm_glm(y ~ x + z1 + z2 + z3 + u1 + u2,     # y ~ .,
-          u1 ~ x + z1 + z2 + z3 + u2,         # u1 ~ . - y,
-          u2 ~ x + z1 + z2 + z3,              # u2 ~ . - y - u1,
+  unm_glm(form1 = y ~ x + z1 + z2 + z3 + u1 + u2,     # y ~ .,
+          form2 = u1 ~ x + z1 + z2 + z3 + u2,         # u1 ~ . - y,
+          form3 = u2 ~ x + z1 + z2 + z3,              # u2 ~ . - y - u1,
           family1 = gaussian(),
           family2 = gaussian(),
           family3 = binomial(),
+          priors = c("lambda[u1]" = "dnorm(.5, 1)"),
+          n.iter = 10000, n.adapt = 4000, thin = 1,
           data = df)
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  unm_mod_ext <-
-#    unm_glm(y ~ x + z1 + z2 + u1 + u2,     # y ~ . - z3,
-#            u1 ~ x + z1 + z2 + u2,         # u1 ~ . - y - z3,
-#            u2 ~ x + z1 + z2,              # u2 ~ . - y - u1 - z3,
+#    unm_glm(form1 = y ~ x + z1 + z2 + u1 + u2,     # y ~ . - z3,
+#            form2 = u1 ~ x + z1 + z2 + u2,         # u1 ~ . - y - z3,
+#            form3 = u2 ~ x + z1 + z2,              # u2 ~ . - y - u1 - z3,
 #            family1 = binomial(),
 #            family2 = gaussian(),
 #            family3 = gaussian(),
@@ -83,9 +84,11 @@ unm_mod <-
 #  unm_glm(..., code_only = TRUE)
 #  jags_code(unm_mod)
 
-## -----------------------------------------------------------------------------
-mcmc_hist(unm_mod, pars = "beta[x]")
-mcmc_trace(unm_mod, pars = "beta[x]")
+## ----fig.align='center', fig.height = 4, fig.width = 6, fig.cap="Histogram of the MCMC draws for the internal validation example. Smooth histogram is an indication of good convergence."----
+bayesplot::mcmc_hist(unm_mod, pars = "beta[x]")
+
+## ----fig.align='center', fig.height = 4, fig.width = 6, fig.cap="Trace plot of the MCMC draws for the internal validation example. No patterns or diverging chains in the trace plot is an indication of good convergence."----
+bayesplot::mcmc_trace(unm_mod, pars = "beta[x]")
 
 ## ----echo=FALSE---------------------------------------------------------------
 # df2 <-
@@ -127,8 +130,9 @@ unm_summary(unm_mod, df) |>
 ## -----------------------------------------------------------------------------
 unm_backfill(df, unm_mod)[16:25, ]
 
-## ----message=FALSE, warning=FALSE---------------------------------------------
-mcmc_intervals(unm_mod, prob_outer = .95, regex_pars = "(beta|lambda|gamma|delta|zeta).+") +
+## ----message=FALSE, warning=FALSE, fig.align='center', fig.height = 4, fig.width = 6, fig.cap= "A credible interval plot for the internal validation example. The light blue circle indicates the posterior median for each parameter, with the bold and thin blue lines displaying the 50% and 95% credible interval, respectively. Red circles are the true parameter values used in the simulation study."----
+bayesplot::mcmc_intervals(unm_mod, prob_outer = .95, 
+                          regex_pars = "(beta|lambda|gamma|delta|zeta).+") +
   geom_point(
     aes(value, name), data = tibble::enframe(attr(df, "params")) |>
       dplyr::mutate(name = gsub("int", "1", name)),
